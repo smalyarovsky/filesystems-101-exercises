@@ -92,5 +92,6 @@ void ps(void) {
 
 		report_process(pid, exe, argv, envp);
 	}
+	closedir(pDir);
 
 }
