@@ -33,11 +33,11 @@ void ps(void) {
 		int pid = atoi(pDirent->d_name);
 
 		char path[256] = "/proc/";
-		strcat(path, pDirent->d_name);
+		strncat(path, pDirent->d_name, 255 - 6 - strlen(pDirent->d_name));
 
 		int len = strlen(path);
 
-		strcat(path, "/exe");
+		strncat(path, "/exe", 255 - len - 4);
 		char exe[PATH_MAX];
 		if (realpath(path, exe) == NULL) {
 			report_error(path, errno);
@@ -45,7 +45,7 @@ void ps(void) {
 		}
 		path[len] = '\0';
 
-		strcat(path, "/cmdline");
+		strncat(path, "/cmdline", 255 - len - 8);
 		char cmdline[4096];
 		if ((fd = open(path, O_RDONLY)) == -1) {
 			report_error(path, errno);
@@ -68,7 +68,7 @@ void ps(void) {
 		path[len] = '\0';
 
 
-		strcat(path, "/environ");
+		strncat(path, "/environ", 255 - len - 8);
 		char env[4096];
 		if ((fd = open(path, O_RDONLY)) == -1) {
 			report_error(path, errno);
