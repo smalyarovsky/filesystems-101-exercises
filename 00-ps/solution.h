@@ -13,7 +13,7 @@ void ps(void);
    ps() must call this function to report each running process.
 
    @exe is the absolute path to the executable file of the process
-   @argc is a NULL-terminated array of command line arguments to the process
+   @argv is a NULL-terminated array of command line arguments to the process
    @envp is a NULL-terminated array of environment variables of the process
 */
 void report_process(pid_t pid, const char *exe, char **argv, char **envp);

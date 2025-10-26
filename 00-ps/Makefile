@@ -6,6 +6,11 @@ HDR_SOLUTION := $(wildcard *.h)
 SRC_STDLIB := $(wildcard ../stdlib/*.c)
 HDR_STDLIB := $(wildcard ../stdlib/*.h)
 
+all: build
+
+clean:
+	rm ./a.out
+
 test: build
 	./a.out
 
