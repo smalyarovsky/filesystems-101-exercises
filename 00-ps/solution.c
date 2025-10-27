@@ -2,7 +2,6 @@
 #include <solution.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -51,10 +50,12 @@ void ps(void) {
 			report_error(path, errno);
 			continue;
 		}
-		if (read(fd, cmdline, 4096) == -1) {
+		int bytesRead = read(fd, cmdline, 4096);
+		if (bytesRead == -1) {
 			report_error(path, errno);
 			continue;
 		}
+		cmdline[bytesRead] = '\0';
 		close(fd);
 		path[len] = '\0';
 
@@ -62,7 +63,7 @@ void ps(void) {
 		int j = 0;
 		for (int i = 0; cmdline[i] != '\0'; j++) {
 			argv[j] = cmdline + i;
-			i += strlen(cmdline + i);
+			i += strlen(cmdline + i) + 1;
 		}
 		argv[j] = NULL;
 		path[len] = '\0';
@@ -74,10 +75,12 @@ void ps(void) {
 			report_error(path, errno);
 			continue;
 		}
-		if (read(fd, env, 4096) == -1) {
+		bytesRead = read(fd, env, 4096);
+		if (bytesRead == -1) {
 			report_error(path, errno);
 			continue;
 		}
+		env[bytesRead] = '\0';
 		close(fd);
 		path[len] = '\0';
 
@@ -85,7 +88,7 @@ void ps(void) {
 		j = 0;
 		for (int i = 0; env[i] != '\0'; j++) {
 			envp[j] = env + i;
-			i += strlen(env + i);
+			i += strlen(env + i) + 1;
 		}
 		envp[j] = NULL;
 		path[len] = '\0';
