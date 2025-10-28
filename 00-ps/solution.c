@@ -51,7 +51,7 @@ void ps(void) {
 			report_error(path, errno);
 			continue;
 		}
-		int bytesRead = read(fd, cmdline, ARGV_MAX);
+		int bytesRead = read(fd, cmdline, ARGV_MAX - 1);
 		close(fd);
 		if (bytesRead == -1) {
 			report_error(path, errno);
@@ -74,7 +74,7 @@ void ps(void) {
 			report_error(path, errno);
 			continue;
 		}
-		bytesRead = read(fd, env, 4096);
+		bytesRead = read(fd, env, ENV_MAX - 1);
 		close(fd);
 		if (bytesRead == -1) {
 			report_error(path, errno);
