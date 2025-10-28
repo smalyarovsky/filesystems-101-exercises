@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#define ARGV_MAX 4096
+#define ENV_MAX 4096
+
 
 void ps(void) {
 	int fd;
@@ -20,80 +23,74 @@ void ps(void) {
 	}
 
 	while ((pDirent = readdir(pDir)) != NULL) {
+		char *strPid = pDirent->d_name;
+
 		int isPid = 1;
-		for (int i = 0; pDirent->d_name[i] != '\0'; i++) {
-			if (!isdigit(pDirent->d_name[i])) {
+		for (int i = 0; strPid[i] != '\0'; i++) {
+			if (!isdigit(strPid[i])) {
 				isPid = 0;
 				break;
 			}
 		}
 		if (!isPid) continue;
 
-		int pid = atoi(pDirent->d_name);
+		int intPid = atoi(strPid);
+		char path[PATH_MAX];
 
-		char path[256] = "/proc/";
-		strncat(path, pDirent->d_name, 255 - 6 - strlen(pDirent->d_name));
 
-		int len = strlen(path);
-
-		strncat(path, "/exe", 255 - len - 4);
+		snprintf(path, PATH_MAX, "/proc/%s/exe", strPid);
 		char exe[PATH_MAX];
 		if (realpath(path, exe) == NULL) {
 			report_error(path, errno);
 			continue;
 		}
-		path[len] = '\0';
 
-		strncat(path, "/cmdline", 255 - len - 8);
-		char cmdline[4096];
+		snprintf(path, PATH_MAX, "/proc/%s/cmdline", strPid);
+		char cmdline[ARGV_MAX];
 		if ((fd = open(path, O_RDONLY)) == -1) {
 			report_error(path, errno);
 			continue;
 		}
-		int bytesRead = read(fd, cmdline, 4096);
+		int bytesRead = read(fd, cmdline, ARGV_MAX);
+		close(fd);
 		if (bytesRead == -1) {
 			report_error(path, errno);
 			continue;
 		}
 		cmdline[bytesRead] = '\0';
-		close(fd);
-		path[len] = '\0';
-
-		char *argv[4096];
+		char *argv[ARGV_MAX];
 		int j = 0;
-		for (int i = 0; cmdline[i] != '\0'; j++) {
+		for (int i = 0; i < ARGV_MAX && j < ARGV_MAX - 1 && cmdline[i] != '\0'; j++) {
 			argv[j] = cmdline + i;
-			i += strlen(cmdline + i) + 1;
+			i += strnlen(cmdline + i, ARGV_MAX - i) + 1;
 		}
 		argv[j] = NULL;
-		path[len] = '\0';
 
 
-		strncat(path, "/environ", 255 - len - 8);
-		char env[4096];
+
+		snprintf(path, PATH_MAX, "/proc/%s/environ", strPid);
+		char env[ENV_MAX];
 		if ((fd = open(path, O_RDONLY)) == -1) {
 			report_error(path, errno);
 			continue;
 		}
 		bytesRead = read(fd, env, 4096);
+		close(fd);
 		if (bytesRead == -1) {
 			report_error(path, errno);
 			continue;
 		}
 		env[bytesRead] = '\0';
-		close(fd);
-		path[len] = '\0';
 
-		char *envp[4096];
+		char *envp[ENV_MAX];
 		j = 0;
-		for (int i = 0; env[i] != '\0'; j++) {
+		for (int i = 0; i < ENV_MAX && j < ENV_MAX - 1 && env[i] != '\0'; j++) {
 			envp[j] = env + i;
-			i += strlen(env + i) + 1;
+			i += strnlen(env + i, ENV_MAX - i) + 1;
 		}
 		envp[j] = NULL;
-		path[len] = '\0';
 
-		report_process(pid, exe, argv, envp);
+		report_process(intPid, exe, argv, envp);
 	}
 	closedir(pDir);
 
