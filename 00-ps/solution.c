@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
-#define ARGV_MAX 4096
-#define ENV_MAX 4096
+#define ARGV_MAX 8192
+#define ENV_MAX 8192
 
 
 void ps(void) {
