@@ -34,8 +34,12 @@ void lsof(void)
 		while ((pDirentFd = readdir(pDirFd)) != NULL) {
 			char buffer[PATH_MAX], curpath[PATH_MAX];
 			snprintf(curpath, PATH_MAX, "/proc/%s/fd/%s", pDirent->d_name, pDirentFd->d_name);
-			realpath(curpath, buffer);
-			if (buffer[0] != '/') continue;
+			int bytesWritten = readlink(curpath, buffer, PATH_MAX - 1);
+			if (bytesWritten == -1) {
+				report_error(curpath, errno);
+				continue;
+			}
+			buffer[bytesWritten] = '\0';
 			report_file(buffer);
 		}
 		closedir(pDirFd);
