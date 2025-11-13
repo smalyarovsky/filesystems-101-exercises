@@ -1,10 +1,15 @@
-.PHONY: build test
+.PHONY: build test all clean
 
 SRC_SOLUTION := $(wildcard *.c)
 HDR_SOLUTION := $(wildcard *.h)
 
 SRC_STDLIB := $(wildcard ../stdlib/*.c)
 HDR_STDLIB := $(wildcard ../stdlib/*.h)
+
+all: build
+
+clean:
+	rm -f a.out
 
 test: build
 	./a.out
