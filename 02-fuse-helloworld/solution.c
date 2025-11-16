@@ -80,8 +80,10 @@ static int hellofs_write(const char *path, const char *buf, size_t size, off_t o
 	return -EROFS;
 }
 
-static int ro_operation() {
-	return -EROFS;
+static void *hellofs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
+	(void) conn;
+	cfg->kernel_cache = 1;
+	return NULL;
 }
 
 static const struct fuse_operations hellofs_ops = {
@@ -90,8 +92,7 @@ static const struct fuse_operations hellofs_ops = {
 	.open    = hellofs_open,
 	.read    = hellofs_read,
 	.write   = hellofs_write,
-
-	.truncate = ro_operation,
+	.init	 = hellofs_init,
 };
 
 int helloworld(const char *mntp)
