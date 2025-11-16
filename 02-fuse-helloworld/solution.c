@@ -80,7 +80,9 @@ static int hellofs_write(const char *path, const char *buf, size_t size, off_t o
 	return -EROFS;
 }
 
-
+static int ro_operation() {
+	return -EROFS;
+}
 
 static const struct fuse_operations hellofs_ops = {
 	.getattr = hellofs_getattr,
@@ -88,6 +90,8 @@ static const struct fuse_operations hellofs_ops = {
 	.open    = hellofs_open,
 	.read    = hellofs_read,
 	.write   = hellofs_write,
+
+	.truncate = ro_operation,
 };
 
 int helloworld(const char *mntp)
