@@ -86,13 +86,79 @@ static void *hellofs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) 
 	return NULL;
 }
 
+static int hellofs_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
+	(void) path; (void) size; (void) fi;
+	return -EROFS;
+}
+
+static int hellofs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+	(void) path; (void) mode; (void) fi;
+	return -EROFS;
+}
+
+static int hellofs_unlink(const char *path) {
+	(void) path;
+	return -EROFS;
+}
+
+static int hellofs_mkdir(const char *path, mode_t mode) {
+	(void) path; (void) mode;
+	return -EROFS;
+}
+
+static int hellofs_rmdir(const char *path) {
+	(void) path;
+	return -EROFS;
+}
+
+static int hellofs_rename(const char *from, const char *to, unsigned int flags) {
+	(void) from; (void) to; (void) flags;
+	return -EROFS;
+}
+
+static int hellofs_chmod(const char *path, mode_t mode, struct fuse_file_info *fi) {
+	(void) path; (void) mode; (void) fi;
+	return -EROFS;
+}
+
+static int hellofs_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+	(void) path; (void) uid; (void) gid; (void) fi;
+	return -EROFS;
+}
+
+static int hellofs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
+	(void) path; (void) tv; (void) fi;
+	return -EROFS;
+}
+
+static int hellofs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags) {
+	(void) path; (void) name; (void) value; (void) size; (void) flags;
+	return -EROFS;
+}
+
+static int hellofs_removexattr(const char *path, const char *name) {
+	(void) path; (void) name;
+	return -EROFS;
+}
+
 static const struct fuse_operations hellofs_ops = {
-	.getattr = hellofs_getattr,
-	.readdir = hellofs_readdir,
-	.open    = hellofs_open,
-	.read    = hellofs_read,
-	.write   = hellofs_write,
-	.init	 = hellofs_init,
+	.getattr    = hellofs_getattr,
+	.readdir    = hellofs_readdir,
+	.open       = hellofs_open,
+	.read       = hellofs_read,
+	.write      = hellofs_write,
+	.init       = hellofs_init,
+	.truncate   = hellofs_truncate,
+	.create     = hellofs_create,
+	.unlink     = hellofs_unlink,
+	.mkdir      = hellofs_mkdir,
+	.rmdir      = hellofs_rmdir,
+	.rename     = hellofs_rename,
+	.chmod      = hellofs_chmod,
+	.chown      = hellofs_chown,
+	.utimens    = hellofs_utimens,
+	.setxattr   = hellofs_setxattr,
+	.removexattr= hellofs_removexattr,
 };
 
 int helloworld(const char *mntp)
