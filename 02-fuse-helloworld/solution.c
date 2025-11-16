@@ -46,7 +46,7 @@ static int hellofs_open(const char *path, struct fuse_file_info *fi) {
 		return -ENOENT;
 
 	if ((fi->flags & O_ACCMODE) != O_RDONLY)
-		return -EACCES;
+		return -EROFS;
 
 	return 0;
 }
