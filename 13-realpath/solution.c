@@ -25,7 +25,7 @@ static int jump(char *parent, char *child, char *buf) {
         return 0;
     }
     snprintf(buf, PATH_MAX, "%s/%s", parent, child);
-    char tmp[PATH_MAX];
+    char tmp[PATH_MAX] = {0};
     const int nbytes = (int) readlink(buf, tmp, PATH_MAX - 1);
     if (nbytes < 0) {
         if (errno == EINVAL) {
@@ -45,7 +45,7 @@ static int jump(char *parent, char *child, char *buf) {
 
 static void finalize(char *path) {
     if (path[0] != '/') {
-        char tmp[PATH_MAX];
+        char tmp[PATH_MAX] = {0};
         snprintf(tmp, PATH_MAX, "/%s", path);
         snprintf(path, PATH_MAX, "%s", tmp);
     }
@@ -70,7 +70,7 @@ static void finalize(char *path) {
 }
 
 void abspath(const char *ppath) {
-    char path[PATH_MAX], parent[PATH_MAX], child[PATH_MAX], tmp[PATH_MAX];
+    char path[PATH_MAX] = {0}, parent[PATH_MAX] = {0}, child[PATH_MAX] = {0}, tmp[PATH_MAX] = {0};
     snprintf(path, PATH_MAX, "%s", ppath);
 
     for (int DEPTH = 0; DEPTH < 40; DEPTH++) {
