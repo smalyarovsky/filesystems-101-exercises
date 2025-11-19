@@ -44,6 +44,12 @@ static int jump(char *parent, char *child, char *buf) {
 }
 
 static void finalize(char *path) {
+    if (path[0] != '/') {
+        char tmp[PATH_MAX];
+        snprintf(tmp, PATH_MAX, "/%s", path);
+        snprintf(path, PATH_MAX, "%s", tmp);
+    }
+
     struct stat st;
 
     if (stat(path, &st) != 0) {
@@ -52,8 +58,10 @@ static void finalize(char *path) {
 
     if (S_ISDIR(st.st_mode)) {
         int len = strnlen(path, PATH_MAX - 2);
-        path[len] = '/';
-        path[len + 1] = '\0';
+        if (path[len - 1] != '/') {
+            path[len] = '/';
+            path[len + 1] = '\0';
+        }
         report_path(path);
     } else {
         report_path(path);
