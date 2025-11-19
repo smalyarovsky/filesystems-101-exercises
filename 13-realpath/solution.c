@@ -37,8 +37,9 @@ static int jump(char *parent, char *child, char *buf) {
     snprintf(buf, PATH_MAX, "%s", tmp);
 
     if (buf[0] != '/') {
-        snprintf(tmp, PATH_MAX, "/%s", buf);
-        snprintf(buf, PATH_MAX, "%s", tmp);
+        char resolved[PATH_MAX];
+        snprintf(resolved, PATH_MAX, "%s/%s", parent[0] ? parent : "/", buf);
+        snprintf(buf, PATH_MAX, "%s", resolved);
     }
     return 1;
 }
