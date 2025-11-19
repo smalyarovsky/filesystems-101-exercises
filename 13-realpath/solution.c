@@ -37,9 +37,8 @@ static int jump(char *parent, char *child, char *buf) {
     snprintf(buf, PATH_MAX, "%s", tmp);
 
     if (buf[0] != '/') {
-        char resolved[PATH_MAX];
-        snprintf(resolved, PATH_MAX, "%s/%s", parent[0] ? parent : "/", buf);
-        snprintf(buf, PATH_MAX, "%s", resolved);
+        snprintf(tmp, PATH_MAX, "/%s", buf);
+        snprintf(buf, PATH_MAX, "%s", tmp);
     }
     return 1;
 }
@@ -67,41 +66,50 @@ static void finalize(char *path) {
     } else {
         report_path(path);
     }
+    exit(0);
 }
 
-void abspath(const char *path) {
+void abspath(const char *ppath) {
+    char path[PATH_MAX], parent[PATH_MAX], child[PATH_MAX], tmp[PATH_MAX];
+    snprintf(path, PATH_MAX, "%s", ppath);
 
-    size_t childlen = 0;
-    char parent[PATH_MAX], child[PATH_MAX], tmp[PATH_MAX];
-    parent[0] = '\0';
+    for (int DEPTH = 0; DEPTH < 40; DEPTH++) {
+        size_t childlen = 0;
+        parent[0] = '\0';
 
-    const size_t len = strnlen(path, PATH_MAX);
+        const size_t len = strnlen(path, PATH_MAX);
 
 
-    for (size_t i = 0; i < len; ++i) {
-        if (i == 0 && path[i] == '/') {
-            continue;
+        for (size_t i = 0; i < len; ++i) {
+            if (i == 0 && path[i] == '/') {
+                continue;
+            }
+            if (path[i] == '/') {
+                child[childlen] = '\0';
+                tmp[0] = '\0';
+                if (jump(parent, child, tmp)) {
+                    snprintf(path, PATH_MAX, "%s", tmp);
+                    childlen = 0;
+                    continue;
+                }
+                snprintf(parent, PATH_MAX, "%s", tmp);
+                childlen = 0;
+            } else {
+                child[childlen++] = path[i];
+            }
         }
-        if (path[i] == '/') {
+        if (childlen != 0) {
             child[childlen] = '\0';
             tmp[0] = '\0';
             if (jump(parent, child, tmp)) {
-                abspath(tmp);
+                snprintf(path, PATH_MAX, "%s", tmp);
+                childlen = 0;
+                continue;
             }
             snprintf(parent, PATH_MAX, "%s", tmp);
             childlen = 0;
-        } else {
-            child[childlen++] = path[i];
         }
+        finalize(parent);
+        break;
     }
-    if (childlen != 0) {
-        child[childlen] = '\0';
-        tmp[0] = '\0';
-        if (jump(parent, child, tmp)) {
-            abspath(tmp);
-        }
-        snprintf(parent, PATH_MAX, "%s", tmp);
-        childlen = 0;
-    }
-    finalize(parent);
 }
