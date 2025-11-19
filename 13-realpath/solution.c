@@ -53,6 +53,7 @@ static void finalize(char *path) {
     struct stat st;
 
     if (stat(path, &st) != 0) {
+        report_error(path, "", errno);
         exit(1);
     }
 
