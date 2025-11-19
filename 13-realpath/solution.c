@@ -12,11 +12,11 @@
 
 static int jump(char *parent, char *child, char *buf) {
     if (strncmp(child, ".", PATH_MAX) == 0) {
-        strncpy(buf, parent, PATH_MAX);
+        snprintf(buf, PATH_MAX, "%s", parent);
         return 0;
     }
     if (strncmp(child, "..", PATH_MAX) == 0) {
-        strncpy(buf, parent, PATH_MAX);
+        snprintf(buf, PATH_MAX, "%s", parent);
         for (int i = (int) strnlen(buf, PATH_MAX) - 1; i >= 0; --i) {
             if (buf[i] == '/' && i == 0) {
                 buf[i] = '\0';
@@ -34,7 +34,7 @@ static int jump(char *parent, char *child, char *buf) {
         report_error(parent, child, errno);
     }
     tmp[nbytes] = '\0';
-    strncpy(buf, tmp, PATH_MAX);
+    snprintf(buf, PATH_MAX, "%s", tmp);
     return 1;
 }
 
@@ -59,7 +59,7 @@ void abspath(const char *path) {
 
     size_t childlen = 0;
     char parent[PATH_MAX], child[PATH_MAX], tmp[PATH_MAX];
-    strncpy(parent, "", PATH_MAX);
+    parent[0] = '\0';
 
     const size_t len = strnlen(path, PATH_MAX);
 
@@ -74,7 +74,7 @@ void abspath(const char *path) {
             if (jump(parent, child, tmp)) {
                 abspath(tmp);
             }
-            strncpy(parent, tmp, PATH_MAX);
+            snprintf(parent, PATH_MAX, "%s", tmp);
             childlen = 0;
         } else {
             child[childlen++] = path[i];
@@ -86,7 +86,7 @@ void abspath(const char *path) {
         if (jump(parent, child, tmp)) {
             abspath(tmp);
         }
-        strncpy(parent, tmp, PATH_MAX);
+        snprintf(parent, PATH_MAX, "%s", tmp);
         childlen = 0;
     }
     finalize(parent);
