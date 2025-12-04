@@ -186,7 +186,7 @@ int dump_dir(int img, int inode_nr)
 		return r;
 	}
 
-	int remaining = (int) it->block_size;
+	int remaining = it->file_size;
 	while (remaining > 0) {
 		int block;
 		if ((r = ext2_blkiter_next(it, &block)) < 0) {
