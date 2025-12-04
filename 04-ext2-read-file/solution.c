@@ -25,6 +25,7 @@ struct ext2_blkiter
 	uint32_t block_size;
 	uint32_t layer[4][EXT2_MAX_BLOCK_SIZE];
 	int l1, l2, l3, ind;
+	uint64_t file_size;
 };
 
 int ext2_fs_init(struct ext2_fs **fs, int fd)
@@ -90,6 +91,7 @@ int ext2_blkiter_init(struct ext2_blkiter **i, struct ext2_fs *fs, int ino)
 	(*i)->fd = fs->fd;
 	(*i)->ind = -1;
 	(*i)->l1 = (*i)->l2 = (*i)->l3 = -1;
+	(*i)->file_size = inode->i_size;
 	fs_xfree(inode);
 	return 0;
 }
@@ -174,16 +176,15 @@ int dump_file(int img, int inode_nr, int out)
 	struct ext2_fs *fs;
 	struct ext2_blkiter *it;
 	int r;
-
-	if ((r = ext2_fs_init(&fs, img)) < 0)
+	if ((r = ext2_fs_init(&fs, img)) < 0) {
 		return r;
-
+	}
 	if ((r = ext2_blkiter_init(&it, fs, inode_nr)) < 0) {
 		ext2_fs_free(fs);
 		return r;
 	}
-
-	for (;;) {
+	uint64_t remaining = it->file_size;
+	while (remaining > 0) {
 		int blkno;
 		r = ext2_blkiter_next(it, &blkno);
 
@@ -195,6 +196,8 @@ int dump_file(int img, int inode_nr, int out)
 		if (r == 0) {
 			break;
 		}
+
+		size_t to_copy = remaining < fs->block_size ? remaining : (size_t)fs->block_size;
 		char buf[fs->block_size];
 		off_t off = (off_t)blkno * fs->block_size;
 		if (pread(img, buf, fs->block_size, off) < 0) {
@@ -202,13 +205,20 @@ int dump_file(int img, int inode_nr, int out)
 			ext2_fs_free(fs);
 			return -errno;
 		}
-		if (write(out, buf, fs->block_size) < 0) {
-			ext2_blkiter_free(it);
-			ext2_fs_free(fs);
-			return -errno;
-		}
-	}
 
+		size_t written = 0;
+		while (written < to_copy) {
+			ssize_t w = write(out, buf + written, to_copy - written);
+			if (w < 0) {
+				ext2_blkiter_free(it);
+				ext2_fs_free(fs);
+				return -errno;
+			}
+			written += (size_t)w;
+		}
+
+		remaining -= to_copy;
+	}
 	ext2_blkiter_free(it);
 	ext2_fs_free(fs);
 	return 0;
