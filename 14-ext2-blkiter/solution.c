@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 struct ext2_fs
@@ -83,13 +84,15 @@ int ext2_blkiter_init(struct ext2_blkiter **i, struct ext2_fs *fs, int ino)
 	}
 	struct ext2_inode *inode = fs_xmalloc(sizeof(struct ext2_inode));
 	if (pread(fs->fd, inode, sizeof(struct ext2_inode),
-		fs->bgdt[bg].bg_inode_table * fs->block_size + offset * sizeof(struct ext2_inode)) < 0) {
+		fs->bgdt[bg].bg_inode_table * fs->block_size + offset * fs->inode_size) < 0) {
 		return -errno;
 	}
 	memcpy((*i)->layer[0], inode->i_block, 15 * sizeof(uint32_t));
 	(*i)->block_size = fs->block_size;
 	(*i)->fd = fs->fd;
 	(*i)->ind = -1;
+	(*i)->l1 = (*i)->l2 = (*i)->l3 = -1;
+	fs_xfree(inode);
 	return 0;
 }
 
