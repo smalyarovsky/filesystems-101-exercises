@@ -203,12 +203,8 @@ int dump_file(int img, int inode_nr, int out)
 		}
 		size_t to_copy = remaining < fs->block_size ? remaining : (size_t)fs->block_size;
 		if (r == 0) {
-			if (lseek(out, to_copy, SEEK_CUR) < 0) {
-				int err = errno;
-				ext2_blkiter_free(it);
-				ext2_fs_free(fs);
-				return -err;
-			}
+			remaining -= to_copy;
+			continue;
 		}
 
 		char buf[fs->block_size];
@@ -222,7 +218,7 @@ int dump_file(int img, int inode_nr, int out)
 
 		size_t written = 0;
 		while (written < to_copy) {
-			ssize_t w = write(out, buf + written, to_copy - written);
+			ssize_t w = pwrite(out, buf + written, to_copy - written, it->file_size - remaining);
 			if (w < 0) {
 				int err = errno;
 				ext2_blkiter_free(it);
