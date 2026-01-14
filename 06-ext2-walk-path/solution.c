@@ -177,7 +177,6 @@ void ext2_blkiter_free(struct ext2_blkiter *i)
 
 int dump_file(int img, const char *path, int out)
 {
-
 	char path_tokens[PATH_MAX];
 	snprintf(path_tokens, PATH_MAX, "%s", path+1);
 
@@ -192,6 +191,7 @@ int dump_file(int img, const char *path, int out)
 	char *token = strtok(path_tokens, "/");
 	while (token != NULL) {
 		if (type != EXT2_FT_DIR) {
+			ext2_fs_free(fs);
 			return -ENOTDIR;
 		}
 		struct ext2_blkiter *it;
@@ -208,6 +208,8 @@ int dump_file(int img, const char *path, int out)
 			int to_read = (remaining < (int) fs->block_size) ? remaining : (int) fs->block_size;
 			char buf[fs->block_size];
 			if (pread(img, buf, to_read, block * fs->block_size) < 0) {
+				ext2_blkiter_free(it);
+				ext2_fs_free(fs);
 				return -errno;
 			}
 			int offset = 0;
@@ -230,6 +232,8 @@ int dump_file(int img, const char *path, int out)
 			remaining -= to_read;
 		}
 		if (!found) {
+			ext2_blkiter_free(it);
+			ext2_fs_free(fs);
 			return -ENOENT;
 		}
 
@@ -247,9 +251,13 @@ int dump_file(int img, const char *path, int out)
 		int to_read = (remaining < (int) fs->block_size) ? remaining : (int) fs->block_size;
 		char buf[fs->block_size];
 		if (pread(img, buf, to_read, block * fs->block_size) < 0) {
+			ext2_blkiter_free(it);
+			ext2_fs_free(fs);
 			return -errno;
 		}
 		if (write(out, buf, to_read) < 0) {
+			ext2_blkiter_free(it);
+			ext2_fs_free(fs);
 			return -errno;
 		}
 		remaining -= to_read;
