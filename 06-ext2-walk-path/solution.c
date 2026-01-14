@@ -253,6 +253,7 @@ int dump_file(int img, const char *path, int out)
 		}
 		remaining -= to_read;
 	}
+	ext2_blkiter_free(it);
 	ext2_fs_free(fs);
 	return 0;
 }
