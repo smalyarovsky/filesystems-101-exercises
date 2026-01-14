@@ -180,7 +180,6 @@ int dump_file(int img, const char *path, int out)
 
 	char path_tokens[PATH_MAX];
 	snprintf(path_tokens, PATH_MAX, "%s", path+1);
-	strtok(path_tokens, "/");
 
 	struct ext2_fs *fs;
 	int r;
@@ -190,7 +189,8 @@ int dump_file(int img, const char *path, int out)
 
 	int inode_cur = 2;
 	int type = EXT2_FT_DIR;
-	for (char *token = strtok(NULL, "/"); token != NULL; token = strtok(NULL, "/")) {
+	char *token = strtok(path_tokens, "/");
+	while (token != NULL) {
 		if (type != EXT2_FT_DIR) {
 			return -ENOTDIR;
 		}
@@ -222,6 +222,7 @@ int dump_file(int img, const char *path, int out)
 					remaining = 0;
 					found = 1;
 					type = dir_entry->file_type;
+					token = strtok(NULL, "/");
 					break;
 				}
 				offset += dir_entry->rec_len;
