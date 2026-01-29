@@ -54,9 +54,6 @@ static void assemble(char *path, char comps[][NAME_MAX], const int comps_len) {
 static void presolve(char *path) {
     static char comps[PATH_MAX][NAME_MAX];
     int comps_len = split(path, comps);
-    reverse(comps, comps_len);
-    snprintf(comps[comps_len++], NAME_MAX, "%s", "/");
-    reverse(comps, comps_len);
     while (comps_len > 0 && strncmp(comps[comps_len - 1], "/", PATH_MAX) == 0) {
         --comps_len;
     }
@@ -64,7 +61,7 @@ static void presolve(char *path) {
 }
 
 
-struct pjumper_state {
+struct pathwalker_state {
     int fd;
     int walked_len;
     char walked[PATH_MAX][NAME_MAX];
@@ -72,7 +69,7 @@ struct pjumper_state {
     char comps[PATH_MAX][NAME_MAX];
 };
 
-static void init(struct pjumper_state *st, const char *path) {
+static void init(struct pathwalker_state *st, const char *path) {
     if ((st->fd = open("/", O_RDONLY)) < 0) {
         report_error("", "/", errno);
     }
@@ -82,17 +79,17 @@ static void init(struct pjumper_state *st, const char *path) {
     st->comps_len = split(resolved, st->comps);
     reverse(st->comps, st->comps_len);
     st->walked_len = 0;
-    // snprintf(st->walked[0], NAME_MAX, "%s", "/");
 }
 
 void abspath(const char *path) {
-    static struct pjumper_state st;
-    init(&st, path);
+    static struct pathwalker_state st;
+    int read;
+    char tmp[PATH_MAX];
 
-    char cur_path[PATH_MAX], next_path[PATH_MAX + NAME_MAX];
+    int isdir = 1;
+    init(&st, path);
     while (st.comps_len > 0) {
         char *comp = st.comps[--st.comps_len];
-
         if (strncmp(".", comp, NAME_MAX) == 0) {
             continue;
         }
@@ -100,52 +97,45 @@ void abspath(const char *path) {
             if (st.walked_len) st.walked_len--;
             continue;
         }
-
-        assemble(cur_path, st.walked, st.walked_len);
-        snprintf(next_path, PATH_MAX + NAME_MAX, "%s/%s", cur_path, comp);
-        presolve(next_path);
-
-        struct stat stat;
-        if (lstat(next_path, &stat) == -1) {
-            report_error(cur_path, comp, errno);
-            return;
-        }
-
-        if (S_ISLNK(stat.st_mode)) {
-            char link[PATH_MAX];
-            int len = (int) readlink(next_path, link, PATH_MAX - 1);
-            if (len < 0) {
-                report_error(cur_path, comp, errno);
-            }
-            link[len] = '\0';
-
+        if ((read = (int) readlinkat(st.fd, comp, tmp, PATH_MAX)) > 0) {
+            tmp[read] = '\0';
             char comps[PATH_MAX][NAME_MAX];
-            int comps_len = split(link, comps);
+            int comps_len = split(tmp, comps);
             reverse(comps, comps_len);
             for (int j = 0; j < comps_len; ++j) {
                 snprintf(st.comps[st.comps_len++], NAME_MAX, "%s", comps[j]);
             }
-            if (link[0] == '/') {
+            if (tmp[0] == '/') {
                 st.walked_len = 0;
             }
             continue;
         }
+        if (errno != EINVAL) {
+            int errno_copy = errno;
+            assemble(tmp, st.comps, st.comps_len);
+            report_error(tmp, comp, errno_copy);
+        }
 
         int fd = st.fd;
-        if ((st.fd = openat(st.fd, comp, O_RDONLY | O_NOFOLLOW)) < 0) {
-            report_error(cur_path, comp, errno);
+        int flag = O_RDONLY | O_NOFOLLOW;
+        if (st.comps_len == 0) {
+            flag |= O_DIRECTORY;
+        }
+        if ((st.fd = openat(st.fd, comp, flag)) < 0) {
+            if (errno == ENOTDIR) {
+                isdir = 0;
+            } else {
+                int errno_copy = errno;
+                assemble(tmp, st.comps, st.comps_len);
+                report_error(tmp, comp, errno_copy);
+            }
         }
         close(fd);
         snprintf(st.walked[st.walked_len++], NAME_MAX, "%s", comp);
     }
-    assemble(cur_path, st.walked, st.walked_len);
-    struct stat stat;
-    if (lstat(cur_path, &stat) == -1) {
-        report_error(cur_path, "", errno);
-        return;
+    assemble(tmp, st.walked, st.walked_len);
+    if (isdir) {
+        strncat(tmp, "/", PATH_MAX - strnlen(tmp, PATH_MAX));
     }
-    if (S_ISDIR(stat.st_mode)) {
-        strncat(cur_path, "/", PATH_MAX - strnlen(cur_path, PATH_MAX));
-    }
-    report_path(cur_path);
+    report_path(tmp);
 }
