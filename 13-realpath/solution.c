@@ -11,7 +11,6 @@
 
 #define SYMLINK_JUMP_MAX 40
 
-
 static int psplit(char *path, char *comps[]) {
     int cur = 0;
     for (int i = 0; i < PATH_MAX; ++i) {
@@ -96,7 +95,6 @@ static void init(struct pjumper_state *st, const char *path) {
 
 
 void abspath(const char *path) {
-
     struct pjumper_state st;
     init(&st, path);
 
@@ -127,8 +125,7 @@ void abspath(const char *path) {
                 snprintf(st.cur_path, PATH_MAX, "%s", link);
                 presolve(st.cur_path);
             } else {
-                strncat(st.cur_path, "/", PATH_MAX);
-                strncat(st.cur_path, link, PATH_MAX);
+                snprintf(st.cur_path, PATH_MAX, "%s/%s", cur_path_copy, link);
                 presolve(st.cur_path);
             }
         }
