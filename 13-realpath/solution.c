@@ -1,116 +1,144 @@
-#include <assert.h>
 #include <errno.h>
 #include <solution.h>
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
-#include <asm-generic/errno-base.h>
+#include <fcntl.h>
 #include <linux/limits.h>
+#include <sys/stat.h>
+
+#define SYMLINK_JUMP_MAX 40
 
 
-static int jump(char *parent, char *child, char *buf) {
-    if (strncmp(child, ".", PATH_MAX) == 0) {
-        snprintf(buf, PATH_MAX, "%s", parent);
-        return 0;
-    }
-    if (strncmp(child, "..", PATH_MAX) == 0) {
-        snprintf(buf, PATH_MAX, "%s", parent);
-        for (int i = (int) strnlen(buf, PATH_MAX) - 1; i >= 0; --i) {
-            if (buf[i] == '/' && i == 0) {
-                buf[i] = '\0';
+static int psplit(char *path, char *comps[]) {
+    int cur = 0;
+    for (int i = 0; i < PATH_MAX; ++i) {
+        if (path[i] == '\0') {
+            break;
+        }
+        if (path[i] == '/') {
+            path[i] = '\0';
+            if (i + 1 < PATH_MAX && path[i + 1] != '\0') {
+                comps[cur++] = path + i + 1;
             }
         }
-        return 0;
     }
-    snprintf(buf, PATH_MAX, "%s/%s", parent, child);
-    char tmp[PATH_MAX] = {0};
-    const int nbytes = (int) readlink(buf, tmp, PATH_MAX - 1);
-    if (nbytes < 0) {
-        if (errno == EINVAL) {
-            return 0;
-        }
-        report_error(parent, child, errno);
-    }
-    tmp[nbytes] = '\0';
-    snprintf(buf, PATH_MAX, "%s", tmp);
-
-    if (buf[0] != '/') {
-        snprintf(tmp, PATH_MAX, "/%s", buf);
-        snprintf(buf, PATH_MAX, "%s", tmp);
-    }
-    return 1;
+    return cur;
 }
 
-static void finalize(char *path) {
-    if (path[0] != '/') {
-        char tmp[PATH_MAX] = {0};
-        snprintf(tmp, PATH_MAX, "/%s", path);
-        snprintf(path, PATH_MAX, "%s", tmp);
-    }
-
-    struct stat st;
-
-    if (stat(path, &st) != 0) {
-        report_error(path, "", errno);
-        exit(1);
-    }
-
-    if (S_ISDIR(st.st_mode)) {
-        int len = strnlen(path, PATH_MAX - 2);
-        if (path[len - 1] != '/') {
-            path[len] = '/';
-            path[len + 1] = '\0';
+static void passemble(char *path, char *comps[], int comps_len) {
+    path[0] = '\0';
+    int path_len = 0;
+    for (int i = 0; i < comps_len; ++i) {
+        int comp_len = (int) strnlen(comps[i], PATH_MAX);
+        strncat(path, comps[i], PATH_MAX - path_len);
+        path_len += comp_len;
+        if (0 < i && i + 1 < comps_len) {
+            strncat(path, "/", PATH_MAX - path_len);
+            path_len++;
         }
-        report_path(path);
-    } else {
-        report_path(path);
     }
-    exit(0);
 }
 
-void abspath(const char *ppath) {
-    char path[PATH_MAX] = {0}, parent[PATH_MAX] = {0}, child[PATH_MAX] = {0}, tmp[PATH_MAX] = {0};
-    snprintf(path, PATH_MAX, "%s", ppath);
+static void presolve(char *path) {
+    char path_copy[PATH_MAX];
+    snprintf(path_copy, PATH_MAX, "%s/", path);
+    char *comps[PATH_MAX];
+    int comps_len = psplit(path_copy, comps);
 
-    for (int DEPTH = 0; DEPTH < 40; DEPTH++) {
-        size_t childlen = 0;
-        parent[0] = '\0';
+    int comps_cur = 1;
+    char *comps_stable[PATH_MAX] = {"/"};
 
-        const size_t len = strnlen(path, PATH_MAX);
+    for (int i = 0; i < comps_len; ++i) {
+        if (strncmp(".", comps[i], PATH_MAX) == 0) {
+            continue;
+        }
+        if (strncmp("..", comps[i], PATH_MAX) == 0 && comps_cur > 1) {
+            comps_cur--;
+            continue;
+        }
+        if (strncmp("/", comps_stable[comps_cur - 1], PATH_MAX) == 0 && strncmp("/", comps[i], PATH_MAX) == 0) {
+            continue;
+        }
+        comps_stable[comps_cur++] = comps[i];
+    }
+
+    while (comps_cur > 1 && strncmp(comps_stable[comps_cur - 1], "/", PATH_MAX) == 0) {
+        --comps_cur;
+    }
+
+    passemble(path, comps_stable, comps_cur);
+}
 
 
-        for (size_t i = 0; i < len; ++i) {
-            if (i == 0 && path[i] == '/') {
-                continue;
+struct pjumper_state {
+    int fd;
+    char cur_path[2 * PATH_MAX];
+    char init_path[2 * PATH_MAX];
+    int comps_len;
+    char *comps[PATH_MAX];
+};
+
+static void init(struct pjumper_state *st, const char *path) {
+    if ((st->fd = open("/", O_RDONLY)) < 0) {
+        report_error("", "/", errno);
+    }
+    st->cur_path[0] = '\0';
+    snprintf(st->init_path, PATH_MAX, "%s", path);
+    presolve(st->init_path);
+    st->comps_len = psplit(st->init_path, st->comps);
+}
+
+
+
+void abspath(const char *path) {
+
+    struct pjumper_state st;
+    init(&st, path);
+
+    for (int i = 0; i < st.comps_len; ++i) {
+        char *comp = st.comps[i];
+
+        strncat(st.cur_path, "/", PATH_MAX);
+        strncat(st.cur_path, comp, PATH_MAX);
+
+        struct stat stat;
+        if (lstat(st.cur_path, &stat) == -1) {
+            report_error(st.cur_path, comp, errno);
+            return;
+        }
+
+        if (S_ISLNK(stat.st_mode)) {
+            char link[PATH_MAX];
+            int len = (int) readlink(st.cur_path, link, PATH_MAX - 1);
+            if (len < 0) {
+                report_error(st.cur_path, comp, errno);
             }
-            if (path[i] == '/') {
-                child[childlen] = '\0';
-                tmp[0] = '\0';
-                if (jump(parent, child, tmp)) {
-                    snprintf(path, PATH_MAX, "%s", tmp);
-                    childlen = 0;
-                    continue;
-                }
-                snprintf(parent, PATH_MAX, "%s", tmp);
-                childlen = 0;
+            link[len] = '\0';
+
+            if (link[0] == '/') {
+                snprintf(st.cur_path, PATH_MAX, "%s", link);
+                presolve(st.cur_path);
             } else {
-                child[childlen++] = path[i];
+                strncat(st.cur_path, "/", PATH_MAX);
+                strncat(st.cur_path, link, PATH_MAX);
+                presolve(st.cur_path);
             }
         }
-        if (childlen != 0) {
-            child[childlen] = '\0';
-            tmp[0] = '\0';
-            if (jump(parent, child, tmp)) {
-                snprintf(path, PATH_MAX, "%s", tmp);
-                childlen = 0;
-                continue;
-            }
-            snprintf(parent, PATH_MAX, "%s", tmp);
-            childlen = 0;
+
+        if ((st.fd = openat(st.fd, comp, O_RDONLY)) < 0) {
+            report_error(st.cur_path, comp, errno);
         }
-        finalize(parent);
-        break;
     }
+    struct stat stat;
+    if (lstat(st.cur_path, &stat) == -1) {
+        report_error(st.cur_path, "", errno);
+        return;
+    }
+    if (S_ISDIR(stat.st_mode)) {
+        strncat(st.cur_path, "/", PATH_MAX);
+    }
+    report_path(st.cur_path);
 }
