@@ -11,7 +11,7 @@
 
 #define SYMLINK_JUMP_MAX 40
 
-static int psplit(const char *path, char comps[][NAME_MAX]) {
+static int split(const char *path, char comps[][NAME_MAX]) {
     int l = 0, r = 0, comps_len = 0;
     for (; r < (int) strnlen(path, PATH_MAX); ++r) {
         if (path[r] == '/') {
@@ -24,7 +24,6 @@ static int psplit(const char *path, char comps[][NAME_MAX]) {
     if (r > l) {
         snprintf(comps[comps_len++], NAME_MAX, "%.*s", r - l + 1, path + l);
     }
-
     return comps_len;
 }
 
@@ -37,14 +36,15 @@ static void reverse(char comps[][NAME_MAX], const int comps_len) {
     }
 }
 
-static void passemble(char *path, char comps[][NAME_MAX], const int comps_len) {
-    path[0] = '\0';
-    int path_len = 0;
+static void assemble(char *path, char comps[][NAME_MAX], const int comps_len) {
+    path[0] = '/';
+    path[1] = '\0';
+    int path_len = 1;
     for (int i = 0; i < comps_len; ++i) {
         int comp_len = (int) strnlen(comps[i], PATH_MAX);
         strncat(path, comps[i], PATH_MAX - path_len);
         path_len += comp_len;
-        if (0 < i && i + 1 < comps_len) {
+        if (i + 1 < comps_len) {
             strncat(path, "/", PATH_MAX - path_len);
             path_len++;
         }
@@ -53,39 +53,21 @@ static void passemble(char *path, char comps[][NAME_MAX], const int comps_len) {
 
 static void presolve(char *path) {
     static char comps[PATH_MAX][NAME_MAX];
-    static char comps_stable[PATH_MAX][NAME_MAX];
-
-
-    int comps_len = psplit(path, comps);
-
-    int comps_cur = 1;
-    snprintf(comps_stable[comps_cur], NAME_MAX, "%s", "/");
-
-    for (int i = 0; i < comps_len; ++i) {
-        if (strncmp(".", comps[i], PATH_MAX) == 0) {
-            continue;
-        }
-        if (strncmp("..", comps[i], PATH_MAX) == 0) {
-            if (comps_cur > 1) comps_cur--;
-            continue;
-        }
-        if (strncmp("/", comps_stable[comps_cur - 1], PATH_MAX) == 0 && strncmp("/", comps[i], PATH_MAX) == 0) {
-            continue;
-        }
-        snprintf(comps_stable[comps_cur++], NAME_MAX, "%s", comps[i]);
+    int comps_len = split(path, comps);
+    reverse(comps, comps_len);
+    snprintf(comps[comps_len++], NAME_MAX, "%s", "/");
+    reverse(comps, comps_len);
+    while (comps_len > 0 && strncmp(comps[comps_len - 1], "/", PATH_MAX) == 0) {
+        --comps_len;
     }
-
-    while (comps_cur > 1 && strncmp(comps_stable[comps_cur - 1], "/", PATH_MAX) == 0) {
-        --comps_cur;
-    }
-
-    passemble(path, comps_stable, comps_cur);
+    assemble(path, comps, comps_len);
 }
 
 
 struct pjumper_state {
     int fd;
-    char path[PATH_MAX];
+    int walked_len;
+    char walked[PATH_MAX][NAME_MAX];
     int comps_len;
     char comps[PATH_MAX][NAME_MAX];
 };
@@ -94,45 +76,51 @@ static void init(struct pjumper_state *st, const char *path) {
     if ((st->fd = open("/", O_RDONLY)) < 0) {
         report_error("", "/", errno);
     }
-    st->path[0] = '\0';
     char resolved[PATH_MAX];
     snprintf(resolved, PATH_MAX, "%s", path);
     presolve(resolved);
-    st->comps_len = psplit(resolved, st->comps);
+    st->comps_len = split(resolved, st->comps);
     reverse(st->comps, st->comps_len);
+    st->walked_len = 0;
+    // snprintf(st->walked[0], NAME_MAX, "%s", "/");
 }
 
 void abspath(const char *path) {
     static struct pjumper_state st;
     init(&st, path);
 
-    char prev_path[PATH_MAX];
+    char cur_path[PATH_MAX], next_path[PATH_MAX + NAME_MAX];
     while (st.comps_len > 0) {
-        snprintf(prev_path, PATH_MAX, "%s", st.path);
+        char *comp = st.comps[--st.comps_len];
 
-        char *comp = st.comps[st.comps_len - 1];
+        if (strncmp(".", comp, NAME_MAX) == 0) {
+            continue;
+        }
+        if (strncmp("..", comp, NAME_MAX) == 0) {
+            if (st.walked_len > 1) st.walked_len--;
+            continue;
+        }
 
-        int len = (int) strnlen(comp, PATH_MAX);
-        strncat(st.path, "/", PATH_MAX - len);
-        strncat(st.path, comp, PATH_MAX - len - 1);
+        assemble(cur_path, st.walked, st.walked_len);
+        snprintf(next_path, PATH_MAX + NAME_MAX, "%s/%s", cur_path, comp);
+        presolve(next_path);
 
         struct stat stat;
-        if (lstat(st.path, &stat) == -1) {
-            report_error(prev_path, comp, errno);
+        if (lstat(next_path, &stat) == -1) {
+            report_error(cur_path, comp, errno);
             return;
         }
 
         if (S_ISLNK(stat.st_mode)) {
             char link[PATH_MAX];
-            int len = (int) readlink(st.path, link, PATH_MAX - 1);
+            int len = (int) readlink(next_path, link, PATH_MAX - 1);
             if (len < 0) {
-                report_error(prev_path, comp, errno);
+                report_error(cur_path, comp, errno);
             }
             link[len] = '\0';
 
-            presolve(link);
             char comps[PATH_MAX][NAME_MAX];
-            int comps_len = psplit(link, comps);
+            int comps_len = split(link, comps);
             reverse(comps, comps_len);
 
             if (link[0] == '/') {
@@ -147,21 +135,22 @@ void abspath(const char *path) {
             }
             continue;
         }
+
         int fd = st.fd;
         if ((st.fd = openat(st.fd, comp, O_RDONLY | O_NOFOLLOW)) < 0) {
-            report_error(prev_path, comp, errno);
+            report_error(cur_path, comp, errno);
         }
         close(fd);
-        st.comps_len--;
+        snprintf(st.walked[st.walked_len++], NAME_MAX, "%s", comp);
     }
-    snprintf(prev_path, PATH_MAX, "%s", st.path);
+    assemble(cur_path, st.walked, st.walked_len);
     struct stat stat;
-    if (lstat(st.path, &stat) == -1) {
-        report_error(prev_path, "", errno);
+    if (lstat(cur_path, &stat) == -1) {
+        report_error(cur_path, "", errno);
         return;
     }
     if (S_ISDIR(stat.st_mode)) {
-        strncat(st.path, "/", PATH_MAX - strnlen(st.path, PATH_MAX));
+        strncat(cur_path, "/", PATH_MAX - strnlen(cur_path, PATH_MAX));
     }
-    report_path(st.path);
+    report_path(cur_path);
 }
