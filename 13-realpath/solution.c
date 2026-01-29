@@ -72,6 +72,7 @@ struct pathwalker_state {
 static void init(struct pathwalker_state *st, const char *path) {
     if ((st->fd = open("/", O_RDONLY)) < 0) {
         report_error("", "/", errno);
+        return;
     }
     char resolved[PATH_MAX];
     snprintf(resolved, PATH_MAX, "%s", path);
@@ -102,8 +103,9 @@ void abspath(const char *path) {
                         isdir = 0;
                     } else {
                         int errno_copy = errno;
-                        assemble(tmp, st.comps, st.comps_len);
+                        assemble(tmp, st.walked, st.walked_len);
                         report_error(tmp, comp, errno_copy);
+                        return;
                     }
                 }
                 close(fd);
@@ -125,8 +127,9 @@ void abspath(const char *path) {
         }
         if (errno != EINVAL) {
             int errno_copy = errno;
-            assemble(tmp, st.comps, st.comps_len);
+            assemble(tmp, st.walked, st.walked_len);
             report_error(tmp, comp, errno_copy);
+            return;
         }
 
         int fd = st.fd;
@@ -139,8 +142,9 @@ void abspath(const char *path) {
                 isdir = 0;
             } else {
                 int errno_copy = errno;
-                assemble(tmp, st.comps, st.comps_len);
+                assemble(tmp, st.walked, st.walked_len);
                 report_error(tmp, comp, errno_copy);
+                return;
             }
         }
         close(fd);
