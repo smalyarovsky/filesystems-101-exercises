@@ -57,8 +57,8 @@ static void presolve(char *path) {
         if (strncmp(".", comps[i], PATH_MAX) == 0) {
             continue;
         }
-        if (strncmp("..", comps[i], PATH_MAX) == 0 && comps_cur > 1) {
-            comps_cur--;
+        if (strncmp("..", comps[i], PATH_MAX) == 0) {
+            if (comps_cur > 1) comps_cur--;
             continue;
         }
         if (strncmp("/", comps_stable[comps_cur - 1], PATH_MAX) == 0 && strncmp("/", comps[i], PATH_MAX) == 0) {
