@@ -97,7 +97,7 @@ void abspath(const char *path) {
             continue;
         }
         if (strncmp("..", comp, NAME_MAX) == 0) {
-            if (st.walked_len > 1) st.walked_len--;
+            if (st.walked_len) st.walked_len--;
             continue;
         }
 
@@ -122,16 +122,11 @@ void abspath(const char *path) {
             char comps[PATH_MAX][NAME_MAX];
             int comps_len = split(link, comps);
             reverse(comps, comps_len);
-
+            for (int j = 0; j < comps_len; ++j) {
+                snprintf(st.comps[st.comps_len++], NAME_MAX, "%s", comps[j]);
+            }
             if (link[0] == '/') {
-                st.comps_len = comps_len;
-                for (int j = 0; j < comps_len; ++j) {
-                    snprintf(st.comps[j], NAME_MAX, "%s", comps[j]);
-                }
-            } else {
-                for (int j = 0; j < comps_len; ++j) {
-                    snprintf(st.comps[st.comps_len++], NAME_MAX, "%s", comps[j]);
-                }
+                st.walked_len = 0;
             }
             continue;
         }
