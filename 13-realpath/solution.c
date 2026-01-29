@@ -29,12 +29,11 @@ static int psplit(const char *path, char comps[][NAME_MAX]) {
 }
 
 static void reverse(char comps[][NAME_MAX], const int comps_len) {
-    char tmp[comps_len][NAME_MAX];
-    for (int i = 0; i < comps_len; ++i) {
-        snprintf(tmp[i], NAME_MAX, "%s", comps[i]);
-    }
-    for (int i = 0; i < comps_len; ++i) {
-        snprintf(comps[comps_len - i - 1], NAME_MAX, "%s", tmp[i]);
+    char tmp[NAME_MAX];
+    for (int i = 0; i < comps_len / 2; ++i) {
+        memcpy(tmp, comps[i], NAME_MAX);
+        memcpy(comps[i], comps[comps_len - 1 - i], NAME_MAX);
+        memcpy(comps[comps_len - 1 - i], tmp, NAME_MAX);
     }
 }
 
@@ -53,11 +52,14 @@ static void passemble(char *path, char comps[][NAME_MAX], const int comps_len) {
 }
 
 static void presolve(char *path) {
-    char comps[PATH_MAX][NAME_MAX];
+    static char comps[PATH_MAX][NAME_MAX];
+    static char comps_stable[PATH_MAX][NAME_MAX];
+
+
     int comps_len = psplit(path, comps);
 
     int comps_cur = 1;
-    char comps_stable[PATH_MAX][NAME_MAX] = {"/"};
+    snprintf(comps_stable[comps_cur], NAME_MAX, "%s", "/");
 
     for (int i = 0; i < comps_len; ++i) {
         if (strncmp(".", comps[i], PATH_MAX) == 0) {
@@ -101,7 +103,7 @@ static void init(struct pjumper_state *st, const char *path) {
 }
 
 void abspath(const char *path) {
-    struct pjumper_state st;
+    static struct pjumper_state st;
     init(&st, path);
 
     char prev_path[PATH_MAX];
