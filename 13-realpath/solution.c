@@ -11,25 +11,34 @@
 
 #define SYMLINK_JUMP_MAX 40
 
-static int psplit(char *path, char *comps[]) {
-    int cur = 0;
-    for (int i = 0; i < PATH_MAX; ++i) {
-        if (path[i] == '\0') {
-            break;
-        }
-        if (i == 0 && path[i] != '/') {
-            comps[cur++] = path;
-        } else if (path[i] == '/') {
-            path[i] = '\0';
-            if (i + 1 < PATH_MAX && path[i + 1] != '\0') {
-                comps[cur++] = path + i + 1;
+static int psplit(const char *path, char comps[][NAME_MAX]) {
+    int l = 0, r = 0, comps_len = 0;
+    for (; r < (int) strnlen(path, PATH_MAX); ++r) {
+        if (path[r] == '/') {
+            if (l < r) {
+                snprintf(comps[comps_len++], NAME_MAX, "%.*s", r - l, path + l);
             }
+            l = r + 1;
         }
     }
-    return cur;
+    if (r > l) {
+        snprintf(comps[comps_len++], NAME_MAX, "%.*s", r - l + 1, path + l);
+    }
+
+    return comps_len;
 }
 
-static void passemble(char *path, char *comps[], int comps_len) {
+static void reverse(char comps[][NAME_MAX], const int comps_len) {
+    char tmp[comps_len][NAME_MAX];
+    for (int i = 0; i < comps_len; ++i) {
+        snprintf(tmp[i], NAME_MAX, "%s", comps[i]);
+    }
+    for (int i = 0; i < comps_len; ++i) {
+        snprintf(comps[comps_len - i - 1], NAME_MAX, "%s", tmp[i]);
+    }
+}
+
+static void passemble(char *path, char comps[][NAME_MAX], const int comps_len) {
     path[0] = '\0';
     int path_len = 0;
     for (int i = 0; i < comps_len; ++i) {
@@ -44,13 +53,11 @@ static void passemble(char *path, char *comps[], int comps_len) {
 }
 
 static void presolve(char *path) {
-    char path_copy[PATH_MAX];
-    snprintf(path_copy, PATH_MAX, "%s/", path);
-    char *comps[PATH_MAX];
-    int comps_len = psplit(path_copy, comps);
+    char comps[PATH_MAX][NAME_MAX];
+    int comps_len = psplit(path, comps);
 
     int comps_cur = 1;
-    char *comps_stable[PATH_MAX] = {"/"};
+    char comps_stable[PATH_MAX][NAME_MAX] = {"/"};
 
     for (int i = 0; i < comps_len; ++i) {
         if (strncmp(".", comps[i], PATH_MAX) == 0) {
@@ -63,7 +70,7 @@ static void presolve(char *path) {
         if (strncmp("/", comps_stable[comps_cur - 1], PATH_MAX) == 0 && strncmp("/", comps[i], PATH_MAX) == 0) {
             continue;
         }
-        comps_stable[comps_cur++] = comps[i];
+        snprintf(comps_stable[comps_cur++], NAME_MAX, "%s", comps[i]);
     }
 
     while (comps_cur > 1 && strncmp(comps_stable[comps_cur - 1], "/", PATH_MAX) == 0) {
@@ -76,72 +83,83 @@ static void presolve(char *path) {
 
 struct pjumper_state {
     int fd;
-    char cur_path[2 * PATH_MAX];
-    char init_path[2 * PATH_MAX];
+    char path[PATH_MAX];
     int comps_len;
-    char *comps[PATH_MAX];
+    char comps[PATH_MAX][NAME_MAX];
 };
 
 static void init(struct pjumper_state *st, const char *path) {
     if ((st->fd = open("/", O_RDONLY)) < 0) {
         report_error("", "/", errno);
     }
-    st->cur_path[0] = '\0';
-    snprintf(st->init_path, PATH_MAX, "%s", path);
-    presolve(st->init_path);
-    st->comps_len = psplit(st->init_path, st->comps);
+    st->path[0] = '\0';
+    char resolved[PATH_MAX];
+    snprintf(resolved, PATH_MAX, "%s", path);
+    presolve(resolved);
+    st->comps_len = psplit(resolved, st->comps);
+    reverse(st->comps, st->comps_len);
 }
-
-
 
 void abspath(const char *path) {
     struct pjumper_state st;
     init(&st, path);
 
-    char cur_path_copy[2 * PATH_MAX];
-    for (int i = 0; i < st.comps_len; ++i) {
-        snprintf(cur_path_copy, 2 * PATH_MAX, "%s", st.cur_path);
+    char prev_path[PATH_MAX];
+    while (st.comps_len > 0) {
+        snprintf(prev_path, PATH_MAX, "%s", st.path);
 
-        char *comp = st.comps[i];
+        char *comp = st.comps[st.comps_len - 1];
 
-        strncat(st.cur_path, "/", PATH_MAX);
-        strncat(st.cur_path, comp, PATH_MAX);
+        int len = (int) strnlen(comp, PATH_MAX);
+        strncat(st.path, "/", PATH_MAX - len);
+        strncat(st.path, comp, PATH_MAX - len - 1);
 
         struct stat stat;
-        if (lstat(st.cur_path, &stat) == -1) {
-            report_error(cur_path_copy, comp, errno);
+        if (lstat(st.path, &stat) == -1) {
+            report_error(prev_path, comp, errno);
             return;
         }
 
         if (S_ISLNK(stat.st_mode)) {
             char link[PATH_MAX];
-            int len = (int) readlink(st.cur_path, link, PATH_MAX - 1);
+            int len = (int) readlink(st.path, link, PATH_MAX - 1);
             if (len < 0) {
-                report_error(cur_path_copy, comp, errno);
+                report_error(prev_path, comp, errno);
             }
             link[len] = '\0';
 
-            if (link[0] == '/') {
-                snprintf(st.cur_path, PATH_MAX, "%s", link);
-                presolve(st.cur_path);
-            } else {
-                snprintf(st.cur_path, 3 * PATH_MAX, "%s/%s", cur_path_copy, link);
-                presolve(st.cur_path);
-            }
-        }
+            presolve(link);
+            char comps[PATH_MAX][NAME_MAX];
+            int comps_len = psplit(link, comps);
+            reverse(comps, comps_len);
 
-        if ((st.fd = openat(st.fd, comp, O_RDONLY)) < 0) {
-            report_error(cur_path_copy, comp, errno);
+            if (link[0] == '/') {
+                st.comps_len = comps_len;
+                for (int j = 0; j < comps_len; ++j) {
+                    snprintf(st.comps[j], NAME_MAX, "%s", comps[j]);
+                }
+            } else {
+                for (int j = 0; j < comps_len; ++j) {
+                    snprintf(st.comps[st.comps_len++], NAME_MAX, "%s", comps[j]);
+                }
+            }
+            continue;
         }
+        int fd = st.fd;
+        if ((st.fd = openat(st.fd, comp, O_RDONLY | O_NOFOLLOW)) < 0) {
+            report_error(prev_path, comp, errno);
+        }
+        close(fd);
+        st.comps_len--;
     }
-    snprintf(cur_path_copy, 2 * PATH_MAX, "%s", st.cur_path);
+    snprintf(prev_path, PATH_MAX, "%s", st.path);
     struct stat stat;
-    if (lstat(st.cur_path, &stat) == -1) {
-        report_error(cur_path_copy, "", errno);
+    if (lstat(st.path, &stat) == -1) {
+        report_error(prev_path, "", errno);
         return;
     }
     if (S_ISDIR(stat.st_mode)) {
-        strncat(st.cur_path, "/", PATH_MAX);
+        strncat(st.path, "/", PATH_MAX - strnlen(st.path, PATH_MAX));
     }
-    report_path(st.cur_path);
+    report_path(st.path);
 }
