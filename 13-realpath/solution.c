@@ -94,7 +94,20 @@ void abspath(const char *path) {
             continue;
         }
         if (strncmp("..", comp, NAME_MAX) == 0) {
-            if (st.walked_len) st.walked_len--;
+            if (st.walked_len) {
+                st.walked_len--;
+                int fd = st.fd;
+                if ((st.fd = openat(st.fd, comp, O_RDONLY)) < 0) {
+                    if (errno == ENOTDIR) {
+                        isdir = 0;
+                    } else {
+                        int errno_copy = errno;
+                        assemble(tmp, st.comps, st.comps_len);
+                        report_error(tmp, comp, errno_copy);
+                    }
+                }
+                close(fd);
+            }
             continue;
         }
         if ((read = (int) readlinkat(st.fd, comp, tmp, PATH_MAX)) > 0) {
