@@ -125,7 +125,7 @@ void abspath(const char *path) {
                 snprintf(st.cur_path, PATH_MAX, "%s", link);
                 presolve(st.cur_path);
             } else {
-                snprintf(st.cur_path, PATH_MAX, "%s/%s", cur_path_copy, link);
+                snprintf(st.cur_path, 3 * PATH_MAX, "%s/%s", cur_path_copy, link);
                 presolve(st.cur_path);
             }
         }
