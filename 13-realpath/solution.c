@@ -135,6 +135,7 @@ void abspath(const char *path) {
             report_error(cur_path_copy, comp, errno);
         }
     }
+    snprintf(cur_path_copy, 2 * PATH_MAX, "%s", st.cur_path);
     struct stat stat;
     if (lstat(st.cur_path, &stat) == -1) {
         report_error(cur_path_copy, "", errno);
