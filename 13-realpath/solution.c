@@ -98,7 +98,10 @@ void abspath(const char *path) {
     struct pjumper_state st;
     init(&st, path);
 
+    char cur_path_copy[PATH_MAX];
     for (int i = 0; i < st.comps_len; ++i) {
+        snprintf(cur_path_copy, PATH_MAX, "%s/", st.cur_path);
+
         char *comp = st.comps[i];
 
         strncat(st.cur_path, "/", PATH_MAX);
@@ -106,7 +109,7 @@ void abspath(const char *path) {
 
         struct stat stat;
         if (lstat(st.cur_path, &stat) == -1) {
-            report_error(st.cur_path, comp, errno);
+            report_error(cur_path_copy, comp, errno);
             return;
         }
 
@@ -114,7 +117,7 @@ void abspath(const char *path) {
             char link[PATH_MAX];
             int len = (int) readlink(st.cur_path, link, PATH_MAX - 1);
             if (len < 0) {
-                report_error(st.cur_path, comp, errno);
+                report_error(cur_path_copy, comp, errno);
             }
             link[len] = '\0';
 
@@ -129,12 +132,12 @@ void abspath(const char *path) {
         }
 
         if ((st.fd = openat(st.fd, comp, O_RDONLY)) < 0) {
-            report_error(st.cur_path, comp, errno);
+            report_error(cur_path_copy, comp, errno);
         }
     }
     struct stat stat;
     if (lstat(st.cur_path, &stat) == -1) {
-        report_error(st.cur_path, "", errno);
+        report_error(cur_path_copy, "", errno);
         return;
     }
     if (S_ISDIR(stat.st_mode)) {
