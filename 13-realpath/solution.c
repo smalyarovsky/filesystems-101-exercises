@@ -98,9 +98,9 @@ void abspath(const char *path) {
     struct pjumper_state st;
     init(&st, path);
 
-    char cur_path_copy[PATH_MAX];
+    char cur_path_copy[2 * PATH_MAX];
     for (int i = 0; i < st.comps_len; ++i) {
-        snprintf(cur_path_copy, PATH_MAX, "%s/", st.cur_path);
+        snprintf(cur_path_copy, 2 * PATH_MAX, "%s", st.cur_path);
 
         char *comp = st.comps[i];
 
