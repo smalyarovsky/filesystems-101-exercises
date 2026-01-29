@@ -18,7 +18,9 @@ static int psplit(char *path, char *comps[]) {
         if (path[i] == '\0') {
             break;
         }
-        if (path[i] == '/') {
+        if (i == 0 && path[i] != '/') {
+            comps[cur++] = path;
+        } else if (path[i] == '/') {
             path[i] = '\0';
             if (i + 1 < PATH_MAX && path[i + 1] != '\0') {
                 comps[cur++] = path + i + 1;
