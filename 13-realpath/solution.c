@@ -130,6 +130,9 @@ void abspath(const char *path) {
                     }
                     if (tmp[0] == '/') {
                         st->walked_len = 0;
+                        if ((st->fd = open("/", O_RDONLY)) < 0) {
+                            goto abspath_error;
+                        }
                     }
                     continue;
                 }
