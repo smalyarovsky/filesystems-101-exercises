@@ -122,14 +122,16 @@ void abspath(const char *path) {
                 if ((bytes_read = (int) readlinkat(fd, comp, tmp, PATH_MAX)) > 0) {
                     st->fd = fd;
                     tmp[bytes_read] = '\0';
-                    char comps[PATH_MAX][NAME_MAX];
+                    char (*comps)[NAME_MAX] = fs_xmalloc(sizeof(char[PATH_MAX][NAME_MAX]));
                     int comps_len = abspath_split(tmp, comps);
                     abspath_reverse(comps, comps_len);
                     for (int j = 0; j < comps_len; ++j) {
                         snprintf(st->comps[st->comps_len++], NAME_MAX, "%s", comps[j]);
                     }
+                    free(comps);
                     if (tmp[0] == '/') {
                         st->walked_len = 0;
+                        close(st->fd);
                         if ((st->fd = open("/", O_RDONLY)) < 0) {
                             goto abspath_error;
                         }
