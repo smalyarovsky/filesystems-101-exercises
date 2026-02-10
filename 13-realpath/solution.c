@@ -15,7 +15,7 @@
 
 static int abspath_split(const char *path, char comps[][NAME_MAX]) {
     int l = 0, r = 0, comps_len = 0;
-    for (; r < (int) strnlen(path, PATH_MAX); ++r) {
+    for (int path_len = (int) strnlen(path, PATH_MAX); r < path_len; ++r) {
         if (path[r] == '/') {
             if (l < r) {
                 snprintf(comps[comps_len++], NAME_MAX, "%.*s", r - l, path + l);
@@ -44,10 +44,10 @@ static void abspath_assemble(char *path, char comps[][NAME_MAX], const int comps
     int path_len = 1;
     for (int i = 0; i < comps_len; ++i) {
         int comp_len = (int) strnlen(comps[i], PATH_MAX);
-        strncat(path, comps[i], PATH_MAX - path_len);
+        strncat(path + path_len, comps[i], PATH_MAX - path_len);
         path_len += comp_len;
         if (i + 1 < comps_len) {
-            strncat(path, "/", PATH_MAX - path_len);
+            strncat(path + path_len, "/", PATH_MAX - path_len);
             path_len++;
         }
     }
