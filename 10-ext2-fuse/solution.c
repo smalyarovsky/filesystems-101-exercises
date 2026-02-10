@@ -86,11 +86,31 @@ static int ext2_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off
 		int offfset = 0;
 		while (offfset < to_read) {
 			struct ext2_dir_entry_2 *dir_entry = (struct ext2_dir_entry_2 *) (buff + offfset);
-			char name[PATH_MAX];
-			memcpy(name, dir_entry->name, dir_entry->name_len);
-			name[dir_entry->name_len] = '\0';
 			if (dir_entry->inode > 0) {
-				filler(buf, name, NULL, 0,0);
+				char name[PATH_MAX];
+				memcpy(name, dir_entry->name, dir_entry->name_len);
+				name[dir_entry->name_len] = '\0';
+
+				struct stat st;
+				memset(&st, 0, sizeof(st));
+				st.st_ino = dir_entry->inode;
+
+				if (dir_entry->file_type == EXT2_FT_UNKNOWN) {
+					struct ext2_inode tinode;
+					if ((r = ext2_readinode(dir_entry->inode, fs, &tinode)) < 0) {
+						ext2_blkiter_free(it);
+						return r;
+					}
+					st.st_mode = tinode.i_mode;
+				} else if (dir_entry->file_type == EXT2_FT_DIR) st.st_mode = S_IFDIR;
+				else if (dir_entry->file_type == EXT2_FT_REG_FILE) st.st_mode = S_IFREG;
+				else if (dir_entry->file_type == EXT2_FT_SYMLINK) st.st_mode = S_IFLNK;
+				else if (dir_entry->file_type == EXT2_FT_CHRDEV) st.st_mode = S_IFCHR;
+				else if (dir_entry->file_type == EXT2_FT_BLKDEV) st.st_mode = S_IFBLK;
+				else if (dir_entry->file_type == EXT2_FT_FIFO) st.st_mode = S_IFIFO;
+				else if (dir_entry->file_type == EXT2_FT_SOCK) st.st_mode = S_IFSOCK;
+
+				filler(buf, name, &st, 0,0);
 			}
 			offfset += dir_entry->rec_len;
 		}
