@@ -54,7 +54,7 @@ static void abspath_assemble(char *path, char comps[][NAME_MAX], const int comps
 }
 
 static void abspath_resolve(char *path) {
-    char (*comps)[NAME_MAX] = fs_xmalloc(sizeof(char[PATH_MAX][NAME_MAX]));
+    char (*comps)[NAME_MAX] = fs_xzalloc(sizeof(char[PATH_MAX][NAME_MAX]));
     int comps_len = abspath_split(path, comps);
     while (comps_len > 0 && strncmp(comps[comps_len - 1], "/", PATH_MAX) == 0) {
         --comps_len;
@@ -85,7 +85,7 @@ static void abspath_init(struct abspath_state *st, const char *path) {
 }
 
 void abspath(const char *path) {
-    struct abspath_state *st = fs_xmalloc(sizeof(struct abspath_state));
+    struct abspath_state *st = fs_xzalloc(sizeof(struct abspath_state));
 
     int bytes_read, is_dir = 1, errno_copy, fd;
     char tmp[PATH_MAX];
