@@ -1,7 +1,5 @@
 #pragma once
 
-#include <unistd.h>
-
 /**
    Implement this function to mount an ext2 file system image @img
    via FUSE to @mntp.
