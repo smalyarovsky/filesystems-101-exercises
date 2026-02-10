@@ -102,7 +102,7 @@ int abspath(const char *path, struct ext2_fs *fs) {
                 st->walked_len--;
                 if ((r = ext2_openat(st->ino, comp, fs, &dir_entry)) < 0) {
                     free(st);
-                    return -r;
+                    return r;
                 }
                 st->ino = dir_entry.inode;
             }
@@ -135,6 +135,7 @@ int abspath(const char *path, struct ext2_fs *fs) {
             }
             continue;
         }
+        st->ino = dir_entry.inode;
         snprintf(st->walked[st->walked_len++], NAME_MAX, "%s", comp);
     }
     return st->ino;
