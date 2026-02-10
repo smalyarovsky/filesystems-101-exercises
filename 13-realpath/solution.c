@@ -87,13 +87,14 @@ static void abspath_init(struct abspath_state *st, const char *path) {
 void abspath(const char *path) {
     struct abspath_state *st = fs_xzalloc(sizeof(struct abspath_state));
 
+    char *comp;
     int bytes_read, is_dir = 1, errno_copy, fd;
     char tmp[PATH_MAX];
 
     abspath_init(st, path);
     while (st->comps_len > 0) {
         is_dir = 1;
-        char *comp = st->comps[--st->comps_len];
+        comp = st->comps[--st->comps_len];
         if (strncmp(".", comp, NAME_MAX) == 0) {
             continue;
         }
@@ -111,14 +112,7 @@ void abspath(const char *path) {
         fd = st->fd;
         if ((st->fd = openat(st->fd, comp, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)) < 0) {
             if (errno == ENOTDIR) {
-                is_dir = 0;
-                if (st->comps_len != 0) {
-                    goto abspath_error;
-                }
-                if ((st->fd = openat(fd, comp, O_RDONLY | O_NOFOLLOW)) < 0) {
-                    goto abspath_error;
-                }
-            } else if (errno == ELOOP) {
+                errno_copy = errno;
                 if ((bytes_read = (int) readlinkat(fd, comp, tmp, PATH_MAX)) > 0) {
                     st->fd = fd;
                     tmp[bytes_read] = '\0';
@@ -138,7 +132,10 @@ void abspath(const char *path) {
                     }
                     continue;
                 }
-                goto abspath_error;
+                is_dir = 0;
+                if ((st->fd = openat(fd, comp, O_RDONLY | O_NOFOLLOW)) < 0) {
+                    goto abspath_error;
+                }
             } else {
                 goto abspath_error;
             }
@@ -155,7 +152,7 @@ void abspath(const char *path) {
 abspath_error:
     errno_copy = errno;
     abspath_assemble(tmp, st->walked, st->walked_len);
-    report_error(tmp, tmp, errno_copy);
+    report_error(tmp, comp, errno_copy);
 abspath_cleanup:
     if (st->fd >= 0) close(st->fd);
     free(st);
